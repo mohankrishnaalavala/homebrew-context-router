@@ -20,6 +20,6 @@ class ContextRouter < Formula
 
   test do
     assert_match "context-router", shell_output("#{bin}/context-router --help")
-    system "#{bin}/context-router", "--version"
+    assert_match "init", shell_output("#{bin}/context-router --help")
   end
 end
