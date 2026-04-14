@@ -1,0 +1,96 @@
+name: Auto-update formula
+
+on:
+  schedule:
+    # Check PyPI for a new release every day at 08:00 UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Force update to this version (e.g. 0.4.0). Leave blank to auto-detect from PyPI.'
+        required: false
+        default: ''
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get target version from PyPI
+        id: pypi
+        run: |
+          TARGET="${{ github.event.inputs.version }}"
+          if [ -z "$TARGET" ]; then
+            TARGET=$(curl -s https://pypi.org/pypi/context-router-cli/json \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print(sorted(d['releases'].keys())[-1])")
+          fi
+          echo "version=$TARGET" >> "$GITHUB_OUTPUT"
+
+      - name: Get current formula version
+        id: current
+        run: |
+          CURRENT=$(grep '^  version' Formula/context-router.rb \
+            | grep -o '"[0-9.]*"' | tr -d '"')
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - name: Check if update needed
+        id: check
+        run: |
+          if [ "${{ steps.pypi.outputs.version }}" = "${{ steps.current.outputs.version }}" ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "Formula already at v${{ steps.current.outputs.version }} — nothing to do."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "Updating formula from v${{ steps.current.outputs.version }} → v${{ steps.pypi.outputs.version }}"
+          fi
+
+      - name: Fetch new wheel URL and sha256 from PyPI
+        if: steps.check.outputs.needed == 'true'
+        id: wheel
+        run: |
+          VERSION="${{ steps.pypi.outputs.version }}"
+          DATA=$(curl -s "https://pypi.org/pypi/context-router-cli/$VERSION/json")
+          URL=$(echo "$DATA" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for f in d['urls']:
+              if f['packagetype'] == 'bdist_wheel':
+                  print(f['url']); break
+          ")
+          SHA=$(echo "$DATA" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for f in d['urls']:
+              if f['packagetype'] == 'bdist_wheel':
+                  print(f['digests']['sha256']); break
+          ")
+          echo "url=$URL"   >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update formula file
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          VERSION="${{ steps.pypi.outputs.version }}"
+          URL="${{ steps.wheel.outputs.url }}"
+          SHA="${{ steps.wheel.outputs.sha256 }}"
+
+          # Replace url, sha256, version lines in-place
+          sed -i "s|url \"https://files.pythonhosted.org/.*\"|url \"$URL\"|" Formula/context-router.rb
+          sed -i "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA\"|"                   Formula/context-router.rb
+          sed -i "s|version \"[0-9.]*\"|version \"$VERSION\"|"               Formula/context-router.rb
+
+          echo "--- Updated formula ---"
+          grep -E 'url |sha256 |version ' Formula/context-router.rb
+
+      - name: Commit and push
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/context-router.rb
+          git commit -m "chore: bump formula to v${{ steps.pypi.outputs.version }}"
+          git push
