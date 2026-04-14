@@ -9,10 +9,10 @@ class ContextRouter < Formula
   depends_on "python@3.12"
 
   def install
-    # Create an isolated virtualenv and install from PyPI using binary wheels.
-    # --prefer-binary ensures compiled extensions like tiktoken use pre-built
-    # wheels instead of compiling from source (which would require Rust/Cargo).
-    venv = virtualenv_create(libexec, "python3.12")
+    # Create an isolated virtualenv using Python 3.12.
+    system "python3.12", "-m", "venv", libexec
+    # Install from PyPI using binary wheels — avoids compiling tiktoken from source
+    # (which would require Rust/Cargo).
     system libexec/"bin/pip", "install", "--prefer-binary", "--no-cache-dir",
            "context-router-cli==#{version}"
     bin.install_symlink libexec/"bin/context-router"
