@@ -18,10 +18,10 @@ class ContextRouter < Formula
 
   desc "Minimum-context selector for AI coding agents — MCP server + CLI"
   homepage "https://github.com/mohankrishnaalavala/context-router"
-  url "https://github.com/mohankrishnaalavala/context-router/archive/refs/tags/v4.3.0.tar.gz"
-  sha256 "568772b1f5b3af2bc36405a10b255709c49106ea35150c56cd6104b95ff49ee1"
+  url "https://github.com/mohankrishnaalavala/context-router/archive/refs/tags/v4.4.0.tar.gz"
+  sha256 "ecdf6a28a27fe68b32b077e46509a235748863187134af5a90d503ed8d21307d"
   license "MIT"
-  version "4.3.0"
+  version "4.4.0"
 
   depends_on "python@3.12"
 
